@@ -71,5 +71,6 @@ print(df_temp_subset.head())
 # plt.show()
 
 
+
 # guardo el nuevo dataset, esto es opcional, lo hago para verlo de forma visual
 df_temp_subset.to_csv('./Dataset_INUMET/CSV/Datos_procesados/Temperatura_procesada.csv', sep=';', index=False)
