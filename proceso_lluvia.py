@@ -17,6 +17,9 @@ except Exception as e:
 df_lluvia_subset = df_lluvia.iloc[:, [2, 3]].copy()
 df_lluvia_subset.columns = ['Fecha', 'Lluvia_Obs1']
 
+# Convertir la columna de fecha a datetime
+df_lluvia_subset['Fecha'] = pd.to_datetime(df_lluvia_subset['Fecha'], dayfirst=True)
+
 print(df_lluvia_subset.head())
 
 print("Verificando valores nulos en el DataFrame:")

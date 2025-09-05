@@ -37,19 +37,6 @@ print(df_vientos.head())
 # Extraer solo la fecha (sin hora) para agrupar por día, como los demas dataframes que tengo
 df_vientos['FechaSolo'] = df_vientos['Fecha'].dt.date
 
-# Calcular la moda de la dirección del viento por día
-moda_por_dia = df_vientos.groupby('FechaSolo')['DirVientos'].apply(lambda x: x.mode()[0] if not x.mode().empty else None).reset_index()
-moda_por_dia.rename(columns={'FechaSolo': 'Fecha'}, inplace=True)
-
-# print("\nModa de dirección del viento por día:")
-# print(moda_por_dia.head())
-# print(f"\nTotal de días procesados: {len(moda_por_dia)}")
-
-df_vientos_moda_procesada = moda_por_dia.copy()
-
-# Convertir la columna DirVientos a numérico, convirtiendo errores a NaN, ya que hay str en la columna
-df_vientos_moda_procesada['DirVientos'] = pd.to_numeric(df_vientos_moda_procesada['DirVientos'], errors='coerce')
-
 # convertir los grados a cardinales
 def grados_a_cardinal(grados):
     if grados is None or pd.isna(grados):
@@ -61,22 +48,27 @@ def grados_a_cardinal(grados):
     
     dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
     ix = round(grados / 45) % 8
-    return dirs[ix] 
+    return dirs[ix]
 
-# Aplicar la conversión a la columna 'DirVientos' y crear una nueva columna 'DirVientos_Cardinal'
-df_vientos_moda_procesada['DirVientos_Cardinal'] = df_vientos_moda_procesada['DirVientos'].apply(grados_a_cardinal)
-# print(df_vientos_moda_procesada.head())
-# print(f"\nValores nulos en el DataFrame final: {df_vientos_moda_procesada.isnull().sum()}")
+df_vientos['DirVientos'] = pd.to_numeric(df_vientos['DirVientos'], errors='coerce')
 
-# ubicación del valor nulo y lo elimino, aca primero printe y era uno solo, por lo cual eliminar una fila me parecio que no implicaba rangos
-for col in df_vientos_moda_procesada.columns:
-    if df_vientos_moda_procesada[col].isnull().any():
-        print(f"Valores nulos encontrados en la columna '{col}':")
-        print(df_vientos_moda_procesada[df_vientos_moda_procesada[col].isnull()])
-        df_vientos_moda_procesada = df_vientos_moda_procesada[df_vientos_moda_procesada[col].notnull()]
-        print(f"Después de eliminar, total de filas: {len(df_vientos_moda_procesada)}")
-# print(f"\nValores nulos después de la limpieza: {df_vientos_moda_procesada.isnull().sum()}")
+
+# aplicar la funcion a la columna DirVientos, si algun valor no es numerico, colocamos 'Desconocido'
+df_vientos['DirVientos_Cardinal'] = df_vientos['DirVientos'].apply(grados_a_cardinal)
+print(df_vientos.head())
+
+#calcular la moda de la dirvientos_cardinal por dia, no tiene en cuenta los 'Desconocido'
+#calcular la moda de la dirvientos_cardinal por dia
+moda_por_dia = df_vientos[df_vientos['DirVientos_Cardinal'] != 'Desconocido'].groupby('FechaSolo')['DirVientos_Cardinal'].apply(lambda x: x.mode()[0] if not x.mode().empty else None).reset_index()
+moda_por_dia.rename(columns={'FechaSolo': 'Fecha'}, inplace=True)
+
+
+df_vientos_moda_procesada = moda_por_dia.copy()
 print(df_vientos_moda_procesada.head())
+
+# cantidad de valores nulos en el dataframe final
+print(f"\nValores nulos en el DataFrame final: {df_vientos_moda_procesada.isnull().sum()}")
+
 
 # guardar el DataFrame final a un nuevo archivo CSV, para verlo mejor de manera visual.
 df_vientos_moda_procesada.to_csv('./Dataset_INUMET/CSV/Datos_procesados/Vientos_Procesado.csv', sep=';', index=False)
