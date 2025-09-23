@@ -4,7 +4,7 @@ from collections import Counter
 from functools import reduce
 
 from sklearn.feature_selection import SelectKBest, chi2
-from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, fbeta_score, recall_score, precision_score, f1_score, confusion_matrix
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import CategoricalNB
@@ -893,16 +893,16 @@ class NaiveBayes:
 k_max=-1
 m_max=-1
 n_max=-1
-f1_max=-1
+f2_max=-1
 #Lista utilizada para graficar
-datos_f1=[]
+datos_f2=[]
 datos_rec=[]
 datos_pres=[]
 # Iterar segun valores de nd
 print("Realizando selección de hiperparámetros (k, m, n)...")
-for entrenamiento_NB_df, prueba_NB_df, n in [(entrenamiento_final_m1_df, prueba_final_m1_df, 1), (entrenamiento_final_m1_7_df, prueba_final_m1_7_df, 7), (entrenamiento_final_m1_15_df, prueba_final_m1_15_df, 15), (entrenamiento_final_m1_30_df, prueba_final_m1_30_df, 30), (entrenamiento_final_m2_df, prueba_final_m2_df, 0)]:
+for entrenamiento_NB_df, prueba_NB_df, n in [(entrenamiento_final_m1_df, prueba_final_m1_df, 1), (entrenamiento_final_m1_7_df, prueba_final_m1_7_df, 7), (entrenamiento_final_m1_15_df, prueba_final_m1_15_df, 15), (entrenamiento_final_m1_30_df, prueba_final_m1_30_df, 30)]:
     valores_m=[1, 3, 5, 10, 15]
-    valores_k=[2, 3, 4, 5, 6, 7] 
+    valores_k=[2, 3, 4, 5]
     y_entrenamiento_NB = entrenamiento_NB_df['manana_llueve']
     entrenamiento_NB_df = entrenamiento_NB_df.drop(columns=['fecha', "manana_llueve"]).copy()
     y_prueba_NB = prueba_NB_df['manana_llueve']
@@ -918,7 +918,7 @@ for entrenamiento_NB_df, prueba_NB_df, n in [(entrenamiento_final_m1_df, prueba_
         for k in valores_k:
             if(n!=0 and k>5): # Si no es el modelo con truenos y fase lunar, k no puede ser mayor a 5
                 continue
-            valores_f1= []
+            valores_f2= []
             valores_pres = []
             valores_rec = []
             valores_acc = []
@@ -947,28 +947,28 @@ for entrenamiento_NB_df, prueba_NB_df, n in [(entrenamiento_final_m1_df, prueba_
                 valores_pres.append(pres)
                 rec=recall_score(y_val_fold, predicciones_cv)
                 valores_rec.append(rec)
-                f1=f1_score(y_val_fold, predicciones_cv)
-                valores_f1.append(f1)
-                if(n==1):
+                f2=fbeta_score(y_val_fold, predicciones_cv, beta=2)
+                valores_f2.append(f2)
+                if(n==7):
                     datos_pres.append((m,k,pres))
                     datos_rec.append((m,k,rec))
-                    datos_f1.append((m, k, f1))
+                    datos_f2.append((m, k, f2))
             precision_promedio = np.mean(valores_pres)
             recall_promedio = np.mean(valores_rec)
-            f1_promedio = np.mean(valores_f1)
+            f2_promedio = np.mean(valores_f2)
             accuracy_promedio = np.mean(valores_acc)
-            k_max, m_max, n_max, f1_max = (k, m, n, f1_promedio) if f1_promedio > f1_max else (k_max, m_max, n_max, f1_max)
-print(f"    Mejor modelo Naive Bayes: Variables con nd={n_max}, k={k_max}, m={m_max}, se obtiene F1 Score={f1_max:.3f}")
+            k_max, m_max, n_max, f2_max = (k, m, n, f2_promedio) if f2_promedio > f2_max else (k_max, m_max, n_max, f2_max)
+print(f"    Mejor modelo Naive Bayes: Variables con nd={n_max}, k={k_max}, m={m_max}, se obtiene F2 Score={f2_max:.3f}")
 
 # ### Entrenamiento completo
 # #### Se entrena al modelo con los hiperparametros optimos obtenidos en el paso anterior y todo el conjunto de entrenamiento, se valida contra el conjunto de pruebas apartado al inicio.
 print("Entrenando modelo final con mejores hiperparámetros...")
 # Entrenamos en base a los hiperparametros óptimos encontrados
 m=1
-k=5
-# nd=1
-entrenamiento_NB_df = entrenamiento_final_m1_df.copy()
-prueba_NB_df = prueba_final_m1_df.copy()
+k=2
+# nd=7
+entrenamiento_NB_df = entrenamiento_final_m1_7_df.copy()
+prueba_NB_df = prueba_final_m1_7_df.copy()
 # Preprocesamiento
 y_entrenamiento_NB = entrenamiento_NB_df['manana_llueve']
 entrenamiento_NB_df = entrenamiento_NB_df.drop(columns=['fecha', "manana_llueve"]).copy().map(encode)
@@ -991,11 +991,11 @@ predicciones_cv = modelo_nb.predict(prueba_NB_df)
 accuracy_nb = accuracy_score(y_prueba_NB, predicciones_cv)
 precision_nb = precision_score(y_prueba_NB, predicciones_cv)
 recall_nb = recall_score(y_prueba_NB, predicciones_cv)
-f1_nb = f1_score(y_prueba_NB, predicciones_cv)
+f2_nb = fbeta_score(y_prueba_NB, predicciones_cv, beta=2)
 print(f"    Accuracy: {accuracy_nb:.4f}")
 print(f"    Precisión: {precision_nb:.4f}")
 print(f"    Recall: {recall_nb:.4f}")
-print(f"    F1-Score: {f1_nb:.4f}")
+print(f"    F2-Score: {f2_nb:.4f}")
 # Matriz de confusion
 mc = confusion_matrix(y_prueba_NB, predicciones_cv)
 print("    Matriz de confusión:")
@@ -1009,11 +1009,15 @@ entrenamiento_encoded_NB_df = entrenamiento_final_m1_df.drop(columns=['fecha', '
 y_entrenamiento_NB_df = entrenamiento_final_m1_df['manana_llueve'].copy()
 prueba_encoded_NB_df = prueba_final_m1_df.drop(columns=['fecha', 'manana_llueve']).copy().map(encode)
 y_prueba_NB_df = prueba_final_m1_df['manana_llueve'].copy()
-# Oversampling
-oversampler = RandomOverSampler(random_state=31)
-entrenamiento_encoded_NB_df, y_entrenamiento_NB_df = oversampler.fit_resample(entrenamiento_encoded_NB_df, y_entrenamiento_NB_df)
+
+# Seleccion de atributos
+selector = SelectKBest(chi2, k=3)
+selector.fit(entrenamiento_encoded_NB_df, y_entrenamiento_NB_df)
+entrenamiento_encoded_NB_df = entrenamiento_encoded_NB_df.iloc[:, selector.get_support()]
+prueba_encoded_NB_df = prueba_encoded_NB_df.iloc[:, selector.get_support()]
+
 # Creamos el modelo
-nb_model = CategoricalNB(alpha=10, fit_prior=False)
+nb_model = CategoricalNB(alpha=100, fit_prior=False)
 # Entrenamos el modelo
 nb_model.fit(entrenamiento_encoded_NB_df, y_entrenamiento_NB_df)
 # Hacemos predicciones
@@ -1021,13 +1025,14 @@ predicciones = nb_model.predict(prueba_encoded_NB_df)
 # Evaluamos el modelo
 precision_cnb = precision_score(y_prueba_NB_df, predicciones)
 recall_cnb = recall_score(y_prueba_NB_df, predicciones)
-f1_cnb = f1_score(y_prueba_NB_df, predicciones)
+f2_cnb = fbeta_score(y_prueba_NB_df, predicciones, beta=2)
 accuracy_cnb = accuracy_score(y_prueba_NB_df, predicciones)
+
 print(f"    Resultados CategoricalNB:")
 print(f"    Accuracy: {accuracy_cnb:.4f} ({(accuracy_cnb/accuracy_nb * 100) - 100:+.1f}%)")
 print(f"    Precisión: {precision_cnb:.4f} ({(precision_cnb/precision_nb * 100) - 100:+.1f}%)")
 print(f"    Recall: {recall_cnb:.4f} ({(recall_cnb/recall_nb * 100) - 100:+.1f}%)")
-print(f"    F1-Score: {f1_cnb:.4f} ({(f1_cnb/f1_nb * 100) - 100:+.1f}%)")
+print(f"    F2-Score: {f2_cnb:.4f} ({(f2_cnb/f2_nb * 100) - 100:+.1f}%)")
 mc_cnb = confusion_matrix(y_prueba_NB_df, predicciones)
 print("    Matriz de confusión CategoricalNB:")
 print("    ", mc_cnb[0])
@@ -1035,44 +1040,43 @@ print("    ", mc_cnb[1])
 
 # Pregunta bonus
 print("Realizando análisis pregunta bonus...")
-# Entrenamos en base a los hiperparametros óptimos encontrados
 m=1
-k=4
-# nd=1
-# Si se desea usar otro nd, cambiar las variables entrenamiento_NB_df y prueba_NB_df por las correspondientes
 entrenamiento_NB_df = entrenamiento_final_m2_df.copy()
 prueba_NB_df = prueba_final_m2_df.copy()
 # Preprocesamiento
 y_entrenamiento_NB = entrenamiento_NB_df['manana_llueve']
-entrenamiento_NB_df = entrenamiento_NB_df.drop(columns=['fecha', "manana_llueve"]).copy().map(encode)
+entrenamiento_NB_df = entrenamiento_NB_df[['hay_truenos', "fase_lunar"]].copy().map(encode)
 y_prueba_NB = prueba_NB_df['manana_llueve']
-prueba_NB_df = prueba_NB_df.drop(columns=['fecha', "manana_llueve"]).copy().map(encode) 
-#print("Columnas seleccionadas:\n", entrenamiento_NB_df.columns.tolist())
-# Seleccion de atributos
-selector = SelectKBest(chi2, k=k)
-selector.fit(entrenamiento_NB_df, y_entrenamiento_NB)
-entrenamiento_NB_df = entrenamiento_NB_df.iloc[:, selector.get_support()]
-prueba_NB_df = prueba_NB_df.iloc[:, selector.get_support()]
-#print("Columnas seleccionadas:", entrenamiento_NB_df.head())
+prueba_NB_df = prueba_NB_df[['hay_truenos', "fase_lunar"]].copy().map(encode)
+
 # Aplicamos Random Oversampling (50 - 50)
-oversampler = RandomOverSampler(random_state=42)
+oversampler = RandomOverSampler(random_state=27)
 entrenamiento_NB_df, y_entrenamiento_NB = oversampler.fit_resample(entrenamiento_NB_df, y_entrenamiento_NB)
 #print("\nDistribución después de Random Oversampling :", y_entrenamiento_NB.value_counts())
+
 # Entrenamos
 modelo_nb = NaiveBayes(m=m)
 modelo_nb.fit(entrenamiento_NB_df, y_entrenamiento_NB)
+
 # Evaluamos
 predicciones_cv = modelo_nb.predict(prueba_NB_df)
+
 accuracy = accuracy_score(y_prueba_NB, predicciones_cv)
 precision = precision_score(y_prueba_NB, predicciones_cv)
 recall = recall_score(y_prueba_NB, predicciones_cv)
-f1 = f1_score(y_prueba_NB, predicciones_cv)
-print(f"    Accuracy: {accuracy:.4f}")
-print(f"    Precisión: {precision:.4f}")
-print(f"    Recall: {recall:.4f}")
-print(f"    F1-Score: {f1:.4f}")
+f2 = fbeta_score(y_prueba_NB, predicciones_cv, beta=2)
+
+print(f"\nAccuracy: {accuracy:.4f}")
+print(f"Precisión: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F2-Score: {f2:.4f}")
+
 # Matriz de confusion
 mc = confusion_matrix(y_prueba_NB, predicciones_cv)
 print("    Matriz de confusión:")
 print("    ", mc[0])
 print("    ", mc[1])
+
+frase = modelo_nb.predict(pd.DataFrame([{"hay_truenos": 1, "fase_lunar": "Luna Nueva"}]).map(encode))
+print("Truenos con luna nueva, prepárese a que llueva.", "Verdadero" if frase.values[0] else "Falso")
+
