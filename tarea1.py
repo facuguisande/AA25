@@ -888,8 +888,6 @@ def main():
         kf = KFold(n_splits=5, shuffle=True, random_state=86)
         for m in valores_m:
             for k in valores_k:
-                if(n!=0 and k>5): # Si no es el modelo con truenos y fase lunar, k no puede ser mayor a 5
-                    continue
                 valores_f2= []
                 valores_pres = []
                 valores_rec = []
