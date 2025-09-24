@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 from collections import Counter
 from functools import reduce
-
+import sklearn as sk
 from sklearn.feature_selection import SelectKBest, chi2
-from sklearn.metrics import accuracy_score, fbeta_score, recall_score, precision_score, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, fbeta_score, recall_score, precision_score, confusion_matrix
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import CategoricalNB
@@ -158,7 +158,7 @@ def entrenar_y_evaluar_arbol(X_train, y_train, X_test, y_test, min_gain_info=0.0
     acc = accuracy_score(y_test, y_pred)
     prec = precision_score(y_test, y_pred, average='macro', zero_division=0)
     rec = recall_score(y_test, y_pred, average='macro', zero_division=0)
-    f1 = f1_score(y_test, y_pred, average='macro', zero_division=0)
+    f1 = fbeta_score(y_test, y_pred, beta=2, average='macro', zero_division=0)
     cm = confusion_matrix(y_test, y_pred)
     return acc, prec, rec, f1, cm, y_pred
 
@@ -726,10 +726,10 @@ def main():
     print("Realizando cross validation para optimizar hiperparámetros...")
     # En esta celda se realiza cross validation sobre el conjunto de entrenamiento para encontrar el mejor hiperparametro de min_info_gain, y tambien la profundida del arbol asociada.
     # Seleccionamos el modelo 2 (con más variables)
-    X_train = entrenamiento_final_m2_df.drop(columns=['fecha', 'manana_llueve'])
-    y_train = entrenamiento_final_m2_df['manana_llueve']
-    X_test = prueba_final_m2_df.drop(columns=['fecha', 'manana_llueve'])
-    y_test = prueba_final_m2_df['manana_llueve']
+    X_train = entrenamiento_final_m1_df.drop(columns=['fecha', 'manana_llueve'])
+    y_train = entrenamiento_final_m1_df['manana_llueve']
+    X_test = prueba_final_m1_df.drop(columns=['fecha', 'manana_llueve'])
+    y_test = prueba_final_m1_df['manana_llueve']
     # Convertimos variables categóricas a números (label encoding)
     for col in X_train.columns:
         if X_train[col].dtype.name == 'category' or X_train[col].dtype == object:
@@ -739,7 +739,7 @@ def main():
     # Función para entrenar y evaluar el árbol de decisión
     max_profundidades = [1, 3, 5, 7, 9, 11, 13]
     min_info_gains = [0.001, 0.005, 0.01, 0.03, 0.1]
-    mejor_f1 = 0
+    mejor_fbeta = 0
     mejor_params = None
     resultados = []
     for mig in min_info_gains:
@@ -748,129 +748,71 @@ def main():
             recalls = []
             precisions = []
             accuracies = []
-            f1_scores = []
+            fbeta_scores = []
             for train_idx, test_idx in kf.split(X_train):
                 X_tr, X_te = X_train.iloc[train_idx].values, X_train.iloc[test_idx].values
                 y_tr, y_te = y_train.iloc[train_idx].values, y_train.iloc[test_idx].values
-                acc, prec, rec, f1,  cm, y_pred = entrenar_y_evaluar_arbol(X_tr, y_tr, X_te, y_te, mig, md)
+                acc, prec, rec, fbeta, cm, y_pred = entrenar_y_evaluar_arbol(X_tr, y_tr, X_te, y_te, mig, md)
                 recalls.append(rec)
                 precisions.append(prec)
                 accuracies.append(acc)
-                f1_scores.append(f1)
+                fbeta_scores.append(fbeta)
             mean_recall = np.mean(recalls)
             mean_precision = np.mean(precisions)
             mean_accuracy = np.mean(accuracies)
-            mean_f1 = np.mean(f1_scores)
+            mean_fbeta = np.mean(fbeta_scores)
             std_recall = np.std(recalls)
-            resultados.append((md, mig, mean_recall, std_recall, mean_precision, mean_accuracy, mean_f1))
-            if mean_f1 > mejor_f1:
-                mejor_f1 = mean_f1
+            resultados.append((md, mig, mean_recall, std_recall, mean_precision, mean_accuracy, mean_fbeta))
+            if mean_fbeta > mejor_fbeta:
+                mejor_fbeta = mean_fbeta
                 mejor_params = (md, mig)
     #
-    cv_results_df = pd.DataFrame(resultados, columns=["max_depth", "main_info_gain", "mean_recall", "std_recall", "mean_precision", "mean_accuracy", "mean_f1"])
-    print(f"    Mejor combinación: Profundidad={mejor_params[0]}, main_info_gain={mejor_params[1]}, se obtiene F1 Score={mean_f1:.3f}")
+    # cv_results_df = pd.DataFrame(resultados, columns=["max_depth", "main_info_gain", "mean_recall", "std_recall", "mean_precision", "mean_accuracy", "mean_fbeta"])
+    print(f"    Mejor combinación: Profundidad={mejor_params[0]}, main_info_gain={mejor_params[1]}, se obtiene Fbeta Score={mejor_fbeta:.3f}")
 
     # En esta celda se realiza el algoritmo de chi-cuadrado, para determinar una seleccion de atributos de nuestro dataset. Se recorre un rango de 2 a 6 atributos, con los datos obtenidos, utilizadno los valores encontrados de hiperparametros de cross validation.
     print("Realizando selección de atributos con Chi-cuadrado...")
-    min_info_gain = 0.001
-    max_profundidad = 9
+
+    # Usamos 80% para entrenamiento y 20% para prueba, usando scikit-learn
+    entrenamiento_chi_cuadrado_x, prueba_chi_cuadrado_x, entrenamiento_y_chi_cuadrado, prueba_y_chi_cuadrado = sk.model_selection.train_test_split(
+    X_train, y_train,
+    test_size=0.2,
+    random_state=13,
+    shuffle=True,
+    stratify=y_train
+    )
+    min_info_gain = 0.01
+    max_profundidad = 7
     atr_mejor = None
     atr_mejor_recall = 0
-    atr_mejor_f1 = 0
+    atr_mejor_fbeta = 0
     atr_mejor_prec = 0
     atr_mejor_acc = 0
     atr_mejor_cm = None
-    for k in range(2, 7):
+    for k in range(2, 6):
         selector = SelectKBest(score_func=chi2, k=k)
-        X_train_selected = selector.fit_transform(X_train, y_train)
-        X_test_selected = selector.transform(X_test)
+        X_train_selected = selector.fit_transform(entrenamiento_chi_cuadrado_x, entrenamiento_y_chi_cuadrado)
+        X_test_selected = selector.transform(prueba_chi_cuadrado_x)
         # Ver qué columnas fueron seleccionadas:
         selected_columns = X_train.columns[selector.get_support()]
-        acc, prec, rec, f1, cm, y_pred = entrenar_y_evaluar_arbol(X_train_selected, y_train.values, X_test_selected, y_test.values, min_info_gain, max_profundidad)
-        if f1 > atr_mejor_f1:
-            atr_mejor_f1 = f1
+        acc, prec, rec, fbeta, cm, y_pred = entrenar_y_evaluar_arbol(X_train_selected, entrenamiento_y_chi_cuadrado.values, X_test_selected, prueba_y_chi_cuadrado.values, min_info_gain, max_profundidad)
+        if fbeta > atr_mejor_fbeta:
+            atr_mejor_fbeta = fbeta
             atr_mejor_recall = rec
             atr_mejor_prec = prec
             atr_mejor_acc = acc
             atr_mejor_cm = cm
             atr_mejor = list(selected_columns)
-    print(f"    Mejor combinación de atributos: {atr_mejor}, se obtiene F1 Score={atr_mejor_f1:.3f}")
-    print(f"    Accuracy: {atr_mejor_acc:.4f}")
-    print(f"    Precision: {atr_mejor_prec:.4f}")
-    print(f"    Recall: {atr_mejor_recall:.4f}")
-    print(f"    F1 Score: {atr_mejor_f1:.4f}")
-    print("    Matriz de confusión:")
-    print("    ", atr_mejor_cm[0])
-    print("    ", atr_mejor_cm[1])
+    print(f"    Mejor combinación de atributos: {atr_mejor}, se obtiene Fbeta Score={atr_mejor_fbeta:.3f}")
 
 
-    print("Evaluando modelo con nd=7...")
-    # Entrenamiento y evaluacion para el modelo de 7 dias, utilizando los hiperparametros obtenidos en cross validation
-    min_info_gain = 0.001
-    max_profundidad = 9
-    # Preparamos los datos
-    X_train_7 = entrenamiento_final_m1_7_df.drop(columns=['fecha', 'manana_llueve'])
-    y_train_7 = entrenamiento_final_m1_7_df['manana_llueve']
-    X_test_7 = prueba_final_m1_7_df.drop(columns=['fecha', 'manana_llueve'])
-    y_test_7 = prueba_final_m1_7_df['manana_llueve']
-    # Convertimos variables categóricas a números (label encoding)
-    for col in X_train_7.columns:
-        if X_train_7[col].dtype.name == 'category' or X_train_7[col].dtype == object:
-            cats = X_train_7[col].astype('category').cat.categories
-            X_train_7[col] = X_train_7[col].astype('category').cat.codes
-            X_test_7[col] = X_test_7[col].astype('category').cat.set_categories(cats).cat.codes
-    # Entrenamiento y evaluación
-    acc, prec, rec, f1, cm, y_pred = entrenar_y_evaluar_arbol(
-        X_train_7.values, y_train_7.values, X_test_7.values, y_test_7.values, min_info_gain, max_profundidad
-    )
-    print(f"    Accuracy: {acc:.4f}")
-    print(f"    Precision: {prec:.4f}")
-    print(f"    Recall: {rec:.4f}")
-    print(f"    F1 Score: {f1:.4f}")
-    print("    Matriz de confusión:")
-    print("    ", cm[0])
-    print("    ", cm[1])
-
-    # ## Random Forest
-    print("Comparando con modelado con Random Forest (vs mejor combinación de atributos)...")
-    # En esta etapa, se realiza entrenamiento y prueba, utilizando el algoritmo de Random Forest Classifier proporcionado por sklearn.
-    X_train_rf = X_train.copy()
-    X_test_rf = X_test.copy()
-    rf = RandomForestClassifier(random_state=26, class_weight='balanced', criterion='entropy', min_impurity_decrease=0.001, n_estimators=100, max_depth=9)
-    rf.fit(X_train_rf, y_train)
-    # Predecimos
-    y_pred_rf = rf.predict(X_test_rf)
-    # Métricas
-    acc_rf = accuracy_score(y_test, y_pred_rf)
-    prec_rf = precision_score(y_test, y_pred_rf, average='macro')
-    rec_rf = recall_score(y_test, y_pred_rf, average='macro')
-    f1_rf = f1_score(y_test, y_pred_rf, average='macro')
-    cm_rf = confusion_matrix(y_test, y_pred_rf)
-    print(f"    RandomForest - Accuracy: {acc_rf:.4f} ({(acc_rf/atr_mejor_acc * 100) - 100:+.1f}%)")
-    print(f"    RandomForest - Precision: {prec_rf:.4f} ({(prec_rf/atr_mejor_prec * 100) - 100:+.1f}%)")
-    print(f"    RandomForest - Recall: {rec_rf:.4f} ({(rec_rf/atr_mejor_recall * 100) - 100:+.1f}%)")
-    print(f"    RandomForest - F1 Score: {f1_rf:.4f} ({(f1_rf/atr_mejor_f1 * 100) - 100:+.1f}%)")
-    print("    RandomForest - Matriz de confusión:")
-    print("    ", atr_mejor_cm[0])
-    print("    ", atr_mejor_cm[1])
-
-    # Analisis de BONUS
-    print("Realizando análisis pregunta bonus...")
-    # # Filtra los días con truenos y luna nueva
-    # cond = (entrenamiento_final_m2_df['hay_truenos'] == 1) & (entrenamiento_final_m2_df['fase_lunar'] == 'Luna Nueva')
-    # dias_truenos_luna_nueva = entrenamiento_final_m2_df[cond]
-    # # Calcula la proporción de días en que llovió al día siguiente
-    # proporcion_lluvia = dias_truenos_luna_nueva['manana_llueve'].mean()
-    # print(f"    Proporción de días con truenos y luna nueva en que llueve al día siguiente: {proporcion_lluvia:.2f}")
-    # # Proporción general de días en que llueve al día siguiente
-    # proporcion_general = entrenamiento_final_m2_df['manana_llueve'].mean()
-    # print(f"    Proporción general de días en que llueve al día siguiente: {proporcion_general:.2f}")
-    X2_train = entrenamiento_final_m2_df.drop(columns=['fecha', 'manana_llueve'])
-    y2_train = entrenamiento_final_m2_df['manana_llueve']
-    X2_test = prueba_final_m2_df.drop(columns=['fecha', 'manana_llueve'])
-    y2_test = prueba_final_m2_df['manana_llueve']
-    min_info_gain = 0.001
-    max_profundidad = 9
+    print("Entrenando y evaluando con mejor combinación de atributos e hiperparametros...")
+    X2_train = entrenamiento_final_m1_df.drop(columns=['fecha', 'manana_llueve'])
+    y2_train = entrenamiento_final_m1_df['manana_llueve']
+    X2_test = prueba_final_m1_df.drop(columns=['fecha', 'manana_llueve'])
+    y2_test = prueba_final_m1_df['manana_llueve']
+    min_info_gain = 0.01
+    max_profundidad = 7
     # Convertimos variables categóricas a números (label encoding)
     for col in X2_train.columns:
         if X2_train[col].dtype.name == 'category' or X2_train[col].dtype == object:
@@ -888,6 +830,30 @@ def main():
     print("    Matriz de confusión:")
     print("    ", cm[0])
     print("    ", cm[1])
+
+    # ## Random Forest
+    print("Comparando con modelado con Random Forest (vs mejor combinación de atributos)...")
+    # En esta etapa, se realiza entrenamiento y prueba, utilizando el algoritmo de Random Forest Classifier proporcionado por sklearn.
+    X_train_rf = X_train.copy()
+    X_test_rf = X_test.copy()
+    rf = RandomForestClassifier(random_state=26, class_weight='balanced', criterion='entropy', min_impurity_decrease=0.01, n_estimators=100, max_depth=7)
+    rf.fit(X_train_rf, y_train)
+    # Predecimos
+    y_pred_rf = rf.predict(X_test_rf)
+    # Métricas
+    acc_rf = accuracy_score(y_test, y_pred_rf)
+    prec_rf = precision_score(y_test, y_pred_rf, average='macro')
+    rec_rf = recall_score(y_test, y_pred_rf, average='macro')
+    fbeta_rf = fbeta_score(y_test, y_pred_rf,beta = 2, average='macro')
+    cm_rf = confusion_matrix(y_test, y_pred_rf)
+    print(f"    RandomForest - Accuracy: {acc_rf:.4f} ({(acc_rf/atr_mejor_acc * 100) - 100:+.1f}%)")
+    print(f"    RandomForest - Precision: {prec_rf:.4f} ({(prec_rf/atr_mejor_prec * 100) - 100:+.1f}%)")
+    print(f"    RandomForest - Recall: {rec_rf:.4f} ({(rec_rf/atr_mejor_recall * 100) - 100:+.1f}%)")
+    print(f"    RandomForest - Fbeta Score: {fbeta_rf:.4f} ({(fbeta_rf/atr_mejor_fbeta * 100) - 100:+.1f}%)")
+    print("    RandomForest - Matriz de confusión:")
+    print("    ", atr_mejor_cm[0])
+    print("    ", atr_mejor_cm[1])
+
 
     ###################
     ### Naive Bayes ###
@@ -1072,7 +1038,7 @@ def main():
     recall = recall_score(y_prueba_NB, predicciones_cv)
     f2 = fbeta_score(y_prueba_NB, predicciones_cv, beta=2)
 
-    print(f"\nAccuracy: {accuracy:.4f}")
+    print(f"Accuracy: {accuracy:.4f}")
     print(f"Precisión: {precision:.4f}")
     print(f"Recall: {recall:.4f}")
     print(f"F2-Score: {f2:.4f}")
