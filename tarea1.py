@@ -768,7 +768,7 @@ def main():
                 mejor_params = (md, mig)
     #
     # cv_results_df = pd.DataFrame(resultados, columns=["max_depth", "main_info_gain", "mean_recall", "std_recall", "mean_precision", "mean_accuracy", "mean_fbeta"])
-    print(f"    Mejor combinación: Profundidad={mejor_params[0]}, main_info_gain={mejor_params[1]}, se obtiene Fbeta Score={mejor_fbeta:.3f}")
+    print(f"    Mejor combinación: Profundidad={mejor_params[0]}, main_info_gain={mejor_params[1]}, se obtiene F2-Score={mejor_fbeta:.3f}")
 
     # En esta celda se realiza el algoritmo de chi-cuadrado, para determinar una seleccion de atributos de nuestro dataset. Se recorre un rango de 2 a 6 atributos, con los datos obtenidos, utilizadno los valores encontrados de hiperparametros de cross validation.
     print("Realizando selección de atributos con Chi-cuadrado...")
@@ -803,7 +803,7 @@ def main():
             atr_mejor_acc = acc
             atr_mejor_cm = cm
             atr_mejor = list(selected_columns)
-    print(f"    Mejor combinación de atributos: {atr_mejor}, se obtiene Fbeta Score={atr_mejor_fbeta:.3f}")
+    print(f"    Mejor combinación de atributos: {atr_mejor}, se obtiene F2-Score={atr_mejor_fbeta:.3f}")
 
 
     print("Entrenando y evaluando con mejor combinación de atributos e hiperparametros...")
@@ -826,13 +826,13 @@ def main():
     print(f"    Accuracy: {acc:.4f}")
     print(f"    Precision: {prec:.4f}")
     print(f"    Recall: {rec:.4f}")
-    print(f"    F1 Score: {f1:.4f}")
+    print(f"    F2-Score: {f1:.4f}")
     print("    Matriz de confusión:")
     print("    ", cm[0])
     print("    ", cm[1])
 
     # ## Random Forest
-    print("Comparando con modelado con Random Forest (vs mejor combinación de atributos)...")
+    print("Comparando con modelado con Random Forest...")
     # En esta etapa, se realiza entrenamiento y prueba, utilizando el algoritmo de Random Forest Classifier proporcionado por sklearn.
     X_train_rf = X_train.copy()
     X_test_rf = X_test.copy()
@@ -846,13 +846,13 @@ def main():
     rec_rf = recall_score(y_test, y_pred_rf, average='macro')
     fbeta_rf = fbeta_score(y_test, y_pred_rf,beta = 2, average='macro')
     cm_rf = confusion_matrix(y_test, y_pred_rf)
-    print(f"    RandomForest - Accuracy: {acc_rf:.4f} ({(acc_rf/atr_mejor_acc * 100) - 100:+.1f}%)")
-    print(f"    RandomForest - Precision: {prec_rf:.4f} ({(prec_rf/atr_mejor_prec * 100) - 100:+.1f}%)")
-    print(f"    RandomForest - Recall: {rec_rf:.4f} ({(rec_rf/atr_mejor_recall * 100) - 100:+.1f}%)")
-    print(f"    RandomForest - Fbeta Score: {fbeta_rf:.4f} ({(fbeta_rf/atr_mejor_fbeta * 100) - 100:+.1f}%)")
+    print(f"    RandomForest - Accuracy: {acc_rf:.4f} ({(acc_rf/acc * 100) - 100:+.1f}%)")
+    print(f"    RandomForest - Precision: {prec_rf:.4f} ({(prec_rf/prec * 100) - 100:+.1f}%)")
+    print(f"    RandomForest - Recall: {rec_rf:.4f} ({(rec_rf/rec * 100) - 100:+.1f}%)")
+    print(f"    RandomForest - F2-Score: {fbeta_rf:.4f} ({(fbeta_rf/fbeta * 100) - 100:+.1f}%)")
     print("    RandomForest - Matriz de confusión:")
-    print("    ", atr_mejor_cm[0])
-    print("    ", atr_mejor_cm[1])
+    print("    ", cm_rf[0])
+    print("    ", cm_rf[1])
 
 
     ###################
@@ -973,7 +973,7 @@ def main():
     print("    ", mc[1])
 
     # ### CategoricalNB
-    print("Comparando con CategoricalNB de sklearn (vs modelo con mejores hiperparámetros)...")
+    print("Comparando con CategoricalNB de sklearn...")
     # Naive Bayes con CategoricalNB
     entrenamiento_encoded_NB_df = entrenamiento_final_m1_df.drop(columns=['fecha', 'manana_llueve']).copy().map(encode)
     y_entrenamiento_NB_df = entrenamiento_final_m1_df['manana_llueve'].copy()
@@ -998,13 +998,12 @@ def main():
     f2_cnb = fbeta_score(y_prueba_NB_df, predicciones, beta=2)
     accuracy_cnb = accuracy_score(y_prueba_NB_df, predicciones)
 
-    print(f"    Resultados CategoricalNB:")
-    print(f"    Accuracy: {accuracy_cnb:.4f} ({(accuracy_cnb/accuracy_nb * 100) - 100:+.1f}%)")
-    print(f"    Precisión: {precision_cnb:.4f} ({(precision_cnb/precision_nb * 100) - 100:+.1f}%)")
-    print(f"    Recall: {recall_cnb:.4f} ({(recall_cnb/recall_nb * 100) - 100:+.1f}%)")
-    print(f"    F2-Score: {f2_cnb:.4f} ({(f2_cnb/f2_nb * 100) - 100:+.1f}%)")
+    print(f"    CategoricalNB - Accuracy: {accuracy_cnb:.4f} ({(accuracy_cnb/accuracy_nb * 100) - 100:+.1f}%)")
+    print(f"    CategoricalNB - Precisión: {precision_cnb:.4f} ({(precision_cnb/precision_nb * 100) - 100:+.1f}%)")
+    print(f"    CategoricalNB - Recall: {recall_cnb:.4f} ({(recall_cnb/recall_nb * 100) - 100:+.1f}%)")
+    print(f"    CategoricalNB - F2-Score: {f2_cnb:.4f} ({(f2_cnb/f2_nb * 100) - 100:+.1f}%)")
     mc_cnb = confusion_matrix(y_prueba_NB_df, predicciones)
-    print("    Matriz de confusión CategoricalNB:")
+    print("    CategoricalNB - Matriz de confusión:")
     print("    ", mc_cnb[0])
     print("    ", mc_cnb[1])
 
@@ -1036,10 +1035,10 @@ def main():
     recall = recall_score(y_prueba_NB, predicciones_cv)
     f2 = fbeta_score(y_prueba_NB, predicciones_cv, beta=2)
 
-    print(f"Accuracy: {accuracy:.4f}")
-    print(f"Precisión: {precision:.4f}")
-    print(f"Recall: {recall:.4f}")
-    print(f"F2-Score: {f2:.4f}")
+    print(f"    Accuracy: {accuracy:.4f}")
+    print(f"    Precisión: {precision:.4f}")
+    print(f"    Recall: {recall:.4f}")
+    print(f"    F2-Score: {f2:.4f}")
 
     # Matriz de confusion
     mc = confusion_matrix(y_prueba_NB, predicciones_cv)
